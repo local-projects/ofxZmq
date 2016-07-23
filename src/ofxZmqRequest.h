@@ -10,6 +10,7 @@ public:
 	ofxZmqRequest();
 	
 	void connect(string addr);
+	void disconnect(string addr);
 	
 	bool send(const void *data, size_t len, bool nonblocking = false, bool more = false);
 	bool send(void *data, size_t len, bool nonblocking = false, bool more = false);
