@@ -23,6 +23,9 @@ public:
 	long getSendHighWaterMark();
 	long getReceiveHighWaterMark();
 
+	bool isConnected(){return socket.connected();}
+	zmq::socket_t& getSocket(){return socket;}
+
 protected:
 
 	zmq::socket_t socket;
