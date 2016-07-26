@@ -9,6 +9,11 @@ void ofxZmqReply::bind(string addr)
 	ofxZmqSocket::bind(addr);
 }
 
+void ofxZmqReply::unbind(string addr)
+{
+	ofxZmqSocket::unbind(addr);
+}
+
 bool ofxZmqReply::send(const void *data, size_t len, bool nonblocking, bool more)
 {
 	return ofxZmqSocket::send(data, len, nonblocking, more);
