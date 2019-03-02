@@ -14,6 +14,7 @@ public:
 	void setIdentity(string data);
 	string getIdentity();
 
+	bool isConnected();
 
 	void setHighWaterMark(long maxQueueSize);
 	void setSendHighWaterMark(long maxQueueSize);
@@ -23,8 +24,7 @@ public:
 	long getSendHighWaterMark();
 	long getReceiveHighWaterMark();
 
-	bool isConnected(){return socket.connected();}
-	zmq::socket_t& getSocket(){return socket;}
+	void setConflate(bool doConflate);
 
 protected:
 

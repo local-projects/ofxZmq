@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -30,47 +30,40 @@
 #ifndef __ZMQ_RAW_DECODER_HPP_INCLUDED__
 #define __ZMQ_RAW_DECODER_HPP_INCLUDED__
 
-#include "err.hpp"
 #include "msg.hpp"
 #include "i_decoder.hpp"
 #include "stdint.hpp"
+#include "decoder_allocators.hpp"
 
 namespace zmq
 {
+//  Decoder for 0MQ v1 framing protocol. Converts data stream into messages.
 
-    //  Decoder for 0MQ v1 framing protocol. Converts data stream into messages.
+class raw_decoder_t : public i_decoder
+{
+  public:
+    raw_decoder_t (size_t bufsize_);
+    virtual ~raw_decoder_t ();
 
-    class raw_decoder_t : public i_decoder
-    {
-    public:
+    //  i_decoder interface.
 
-        raw_decoder_t (size_t bufsize_);
-        virtual ~raw_decoder_t ();
+    virtual void get_buffer (unsigned char **data_, size_t *size_);
 
-        //  i_decoder interface.
+    virtual int
+    decode (const unsigned char *data_, size_t size_, size_t &bytes_used_);
 
-        virtual void get_buffer (unsigned char **data_, size_t *size_);
+    virtual msg_t *msg () { return &_in_progress; }
 
-        virtual int decode (const unsigned char *data_, size_t size_,
-                            size_t &processed);
+    virtual void resize_buffer (size_t) {}
 
-        virtual msg_t *msg () { return &in_progress; }
+  private:
+    msg_t _in_progress;
 
+    shared_message_memory_allocator _allocator;
 
-    private:
-
-
-        msg_t in_progress;
-
-        const size_t bufsize;
-
-        unsigned char *buffer;
-
-        raw_decoder_t (const raw_decoder_t&);
-        void operator = (const raw_decoder_t&);
-    };
-
+    raw_decoder_t (const raw_decoder_t &);
+    void operator= (const raw_decoder_t &);
+};
 }
 
 #endif
-

@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -27,6 +27,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "precompiled.hpp"
+#include "macros.hpp"
 #include "push.hpp"
 #include "pipe.hpp"
 #include "err.hpp"
@@ -42,34 +44,37 @@ zmq::push_t::~push_t ()
 {
 }
 
-void zmq::push_t::xattach_pipe (pipe_t *pipe_, bool subscribe_to_all_)
+void zmq::push_t::xattach_pipe (pipe_t *pipe_,
+                                bool subscribe_to_all_,
+                                bool locally_initiated_)
 {
-    // subscribe_to_all_ is unused
-    (void)subscribe_to_all_;
+    LIBZMQ_UNUSED (subscribe_to_all_);
+    LIBZMQ_UNUSED (locally_initiated_);
+
     //  Don't delay pipe termination as there is no one
     //  to receive the delimiter.
     pipe_->set_nodelay ();
 
     zmq_assert (pipe_);
-    lb.attach (pipe_);
+    _lb.attach (pipe_);
 }
 
 void zmq::push_t::xwrite_activated (pipe_t *pipe_)
 {
-    lb.activated (pipe_);
+    _lb.activated (pipe_);
 }
 
 void zmq::push_t::xpipe_terminated (pipe_t *pipe_)
 {
-    lb.pipe_terminated (pipe_);
+    _lb.pipe_terminated (pipe_);
 }
 
 int zmq::push_t::xsend (msg_t *msg_)
 {
-    return lb.send (msg_);
+    return _lb.send (msg_);
 }
 
 bool zmq::push_t::xhas_out ()
 {
-    return lb.has_out ();
+    return _lb.has_out ();
 }

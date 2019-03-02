@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -32,11 +32,11 @@
 
 namespace zmq
 {
-    int proxy (
-        class socket_base_t *frontend_,
-        class socket_base_t *backend_,
-        class socket_base_t *capture_,
-        class socket_base_t *control_ = NULL); // backward compatibility without this argument
+int proxy (class socket_base_t *frontend_,
+           class socket_base_t *backend_,
+           class socket_base_t *capture_,
+           class socket_base_t *control_ =
+             NULL); // backward compatibility without this argument
 }
 
 #endif

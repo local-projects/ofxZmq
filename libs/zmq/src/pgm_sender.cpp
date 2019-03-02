@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -27,13 +27,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "platform.hpp"
+#include "precompiled.hpp"
 
 #if defined ZMQ_HAVE_OPENPGM
-
-#ifdef ZMQ_HAVE_WINDOWS
-#include "windows.hpp"
-#endif
 
 #include <stdlib.h>
 
@@ -43,9 +39,10 @@
 #include "err.hpp"
 #include "wire.hpp"
 #include "stdint.hpp"
+#include "macros.hpp"
 
 zmq::pgm_sender_t::pgm_sender_t (io_thread_t *parent_,
-      const options_t &options_) :
+                                 const options_t &options_) :
     io_object_t (parent_),
     has_tx_timer (false),
     has_rx_timer (false),
@@ -54,6 +51,10 @@ zmq::pgm_sender_t::pgm_sender_t (io_thread_t *parent_,
     more_flag (false),
     pgm_socket (false, options_),
     options (options_),
+    handle (static_cast<handle_t> (NULL)),
+    uplink_handle (static_cast<handle_t> (NULL)),
+    rdata_notify_handle (static_cast<handle_t> (NULL)),
+    pending_notify_handle (static_cast<handle_t> (NULL)),
     out_buffer (NULL),
     out_buffer_size (0),
     write_size (0)
@@ -69,7 +70,7 @@ int zmq::pgm_sender_t::init (bool udp_encapsulation_, const char *network_)
         return rc;
 
     out_buffer_size = pgm_socket.get_max_tsdu_size ();
-    out_buffer = (unsigned char*) malloc (out_buffer_size);
+    out_buffer = (unsigned char *) malloc (out_buffer_size);
     alloc_assert (out_buffer);
 
     return rc;
@@ -77,7 +78,8 @@ int zmq::pgm_sender_t::init (bool udp_encapsulation_, const char *network_)
 
 void zmq::pgm_sender_t::plug (io_thread_t *io_thread_, session_base_t *session_)
 {
-    //  Alocate 2 fds for PGM socket.
+    LIBZMQ_UNUSED (io_thread_);
+    //  Allocate 2 fds for PGM socket.
     fd_t downlink_socket_fd = retired_fd;
     fd_t uplink_socket_fd = retired_fd;
     fd_t rdata_notify_fd = retired_fd;
@@ -87,7 +89,7 @@ void zmq::pgm_sender_t::plug (io_thread_t *io_thread_, session_base_t *session_)
 
     //  Fill fds from PGM transport and add them to the poller.
     pgm_socket.get_sender_fds (&downlink_socket_fd, &uplink_socket_fd,
-        &rdata_notify_fd, &pending_notify_fd);
+                               &rdata_notify_fd, &pending_notify_fd);
 
     handle = add_fd (downlink_socket_fd);
     uplink_handle = add_fd (uplink_socket_fd);
@@ -95,7 +97,7 @@ void zmq::pgm_sender_t::plug (io_thread_t *io_thread_, session_base_t *session_)
     pending_notify_handle = add_fd (pending_notify_fd);
 
     //  Set POLLIN. We wont never want to stop polling for uplink = we never
-    //  want to stop porocess NAKs.
+    //  want to stop processing NAKs.
     set_pollin (uplink_handle);
     set_pollin (rdata_notify_handle);
     set_pollin (pending_notify_handle);
@@ -135,9 +137,15 @@ void zmq::pgm_sender_t::restart_output ()
     out_event ();
 }
 
-void zmq::pgm_sender_t::restart_input ()
+bool zmq::pgm_sender_t::restart_input ()
 {
     zmq_assert (false);
+    return true;
+}
+
+const char *zmq::pgm_sender_t::get_endpoint () const
+{
+    return "";
 }
 
 zmq::pgm_sender_t::~pgm_sender_t ()
@@ -172,7 +180,6 @@ void zmq::pgm_sender_t::out_event ()
     //  POLLOUT event from send socket. If write buffer is empty,
     //  try to read new data from the encoder.
     if (write_size == 0) {
-
         //  First two bytes (sizeof uint16_t) are used to store message
         //  offset in following steps. Note that by passing our buffer to
         //  the get data function we prevent it from returning its own buffer.
@@ -183,7 +190,7 @@ void zmq::pgm_sender_t::out_event ()
         size_t bytes = encoder.encode (&bf, bfsz);
         while (bytes < bfsz) {
             if (!more_flag && offset == 0xffff)
-                offset = static_cast <uint16_t> (bytes);
+                offset = static_cast<uint16_t> (bytes);
             int rc = session->pull_msg (&msg);
             if (rc == -1)
                 break;
@@ -207,6 +214,7 @@ void zmq::pgm_sender_t::out_event ()
 
     if (has_tx_timer) {
         cancel_timer (tx_timer_id);
+        set_pollout (handle);
         has_tx_timer = false;
     }
 
@@ -220,11 +228,12 @@ void zmq::pgm_sender_t::out_event ()
         zmq_assert (nbytes == 0);
 
         if (errno == ENOMEM) {
+            // Stop polling handle and wait for tx timeout
             const long timeout = pgm_socket.get_tx_timeout ();
             add_timer (timeout, tx_timer_id);
+            reset_pollout (handle);
             has_tx_timer = true;
-        }
-        else
+        } else
             errno_assert (errno == EBUSY);
     }
 }
@@ -235,15 +244,13 @@ void zmq::pgm_sender_t::timer_event (int token)
     if (token == rx_timer_id) {
         has_rx_timer = false;
         in_event ();
-    }
-    else
-    if (token == tx_timer_id) {
+    } else if (token == tx_timer_id) {
+        // Restart polling handle and retry sending
         has_tx_timer = false;
+        set_pollout (handle);
         out_event ();
-    }
-    else
+    } else
         zmq_assert (false);
 }
 
 #endif
-

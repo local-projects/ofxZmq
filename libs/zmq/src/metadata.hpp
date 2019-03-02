@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -37,34 +37,33 @@
 
 namespace zmq
 {
-    class metadata_t
-    {
-        public:
+class metadata_t
+{
+  public:
+    typedef std::map<std::string, std::string> dict_t;
 
-            typedef std::map <std::string, const std::string> dict_t;
+    metadata_t (const dict_t &dict_);
 
-            metadata_t (const dict_t &dict);
-            virtual ~metadata_t ();
+    //  Returns pointer to property value or NULL if
+    //  property is not found.
+    const char *get (const std::string &property_) const;
 
-            //  Returns pointer to property value or NULL if
-            //  property is not found.
-            virtual const char *get (const std::string &property) const;
+    void add_ref ();
 
-            virtual void add_ref ();
+    //  Drop reference. Returns true iff the reference
+    //  counter drops to zero.
+    bool drop_ref ();
 
-            //  Drop reference. Returns true iff the reference
-            //  counter drops to zero.
-            virtual bool drop_ref ();
+  private:
+    metadata_t (const metadata_t &);
+    metadata_t &operator= (const metadata_t &);
 
-        private:
+    //  Reference counter.
+    atomic_counter_t _ref_cnt;
 
-            //  Reference counter.
-            atomic_counter_t ref_cnt;
-
-            //  Dictionary holding metadata.
-            const dict_t dict;
-    };
-
+    //  Dictionary holding metadata.
+    const dict_t _dict;
+};
 }
 
 #endif

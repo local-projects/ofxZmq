@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -27,15 +27,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "platform.hpp"
+#include "precompiled.hpp"
+#include "macros.hpp"
 
 #if defined ZMQ_HAVE_OPENPGM
 
 #include <new>
-
-#ifdef ZMQ_HAVE_WINDOWS
-#include "windows.hpp"
-#endif
 
 #include "pgm_receiver.hpp"
 #include "session_base.hpp"
@@ -45,7 +42,7 @@
 #include "err.hpp"
 
 zmq::pgm_receiver_t::pgm_receiver_t (class io_thread_t *parent_,
-      const options_t &options_) :
+                                     const options_t &options_) :
     io_object_t (parent_),
     has_rx_timer (false),
     pgm_socket (true, options_),
@@ -68,8 +65,9 @@ int zmq::pgm_receiver_t::init (bool udp_encapsulation_, const char *network_)
 }
 
 void zmq::pgm_receiver_t::plug (io_thread_t *io_thread_,
-    session_base_t *session_)
+                                session_base_t *session_)
 {
+    LIBZMQ_UNUSED (io_thread_);
     //  Retrieve PGM fds and start polling.
     fd_t socket_fd = retired_fd;
     fd_t waiting_pipe_fd = retired_fd;
@@ -88,9 +86,11 @@ void zmq::pgm_receiver_t::plug (io_thread_t *io_thread_,
 void zmq::pgm_receiver_t::unplug ()
 {
     //  Delete decoders.
-    for (peers_t::iterator it = peers.begin (); it != peers.end (); ++it) {
-        if (it->second.decoder != NULL)
-            delete it->second.decoder;
+    for (peers_t::iterator it = peers.begin (), end = peers.end (); it != end;
+         ++it) {
+        if (it->second.decoder != NULL) {
+            LIBZMQ_DELETE (it->second.decoder);
+        }
     }
     peers.clear ();
     active_tsi = NULL;
@@ -117,7 +117,7 @@ void zmq::pgm_receiver_t::restart_output ()
     drop_subscriptions ();
 }
 
-void zmq::pgm_receiver_t::restart_input ()
+bool zmq::pgm_receiver_t::restart_input ()
 {
     zmq_assert (session != NULL);
     zmq_assert (active_tsi != NULL);
@@ -136,13 +136,12 @@ void zmq::pgm_receiver_t::restart_input ()
             //  HWM reached; we will try later.
             if (errno == EAGAIN) {
                 session->flush ();
-                return;
+                return true;
             }
             //  Data error. Delete message decoder, mark the
             //  peer as not joined and drop remaining data.
             it->second.joined = false;
-            delete it->second.decoder;
-            it->second.decoder = NULL;
+            LIBZMQ_DELETE (it->second.decoder);
             insize = 0;
         }
     }
@@ -153,10 +152,23 @@ void zmq::pgm_receiver_t::restart_input ()
 
     active_tsi = NULL;
     in_event ();
+
+    return true;
+}
+
+const char *zmq::pgm_receiver_t::get_endpoint () const
+{
+    return "";
 }
 
 void zmq::pgm_receiver_t::in_event ()
 {
+    // If active_tsi is not null, there is a pending restart_input.
+    // Keep the internal state as is so that restart_input would process the right data
+    if (active_tsi) {
+        return;
+    }
+
     // Read data from the underlying pgm_socket.
     const pgm_tsi_t *tsi = NULL;
 
@@ -168,12 +180,11 @@ void zmq::pgm_receiver_t::in_event ()
     //  TODO: This loop can effectively block other engines in the same I/O
     //  thread in the case of high load.
     while (true) {
-
         //  Get new batch of data.
         //  Note the workaround made not to break strict-aliasing rules.
+        insize = 0;
         void *tmp = NULL;
         ssize_t received = pgm_socket.receive (&tmp, &tsi);
-        inpos = (unsigned char*) tmp;
 
         //  No data to process. This may happen if the packet received is
         //  neither ODATA nor ODATA.
@@ -194,8 +205,7 @@ void zmq::pgm_receiver_t::in_event ()
             if (it != peers.end ()) {
                 it->second.joined = false;
                 if (it->second.decoder != NULL) {
-                    delete it->second.decoder;
-                    it->second.decoder = NULL;
+                    LIBZMQ_DELETE (it->second.decoder);
                 }
             }
             break;
@@ -204,10 +214,11 @@ void zmq::pgm_receiver_t::in_event ()
         //  New peer. Add it to the list of know but unjoint peers.
         if (it == peers.end ()) {
             peer_info_t peer_info = {false, NULL};
-            it = peers.insert (peers_t::value_type (*tsi, peer_info)).first;
+            it = peers.ZMQ_MAP_INSERT_OR_EMPLACE (*tsi, peer_info).first;
         }
 
-        insize = static_cast <size_t> (received);
+        insize = static_cast<size_t> (received);
+        inpos = (unsigned char *) tmp;
 
         //  Read the offset of the fist message in the current packet.
         zmq_assert (insize >= sizeof (uint16_t));
@@ -217,7 +228,6 @@ void zmq::pgm_receiver_t::in_event ()
 
         //  Join the stream if needed.
         if (!it->second.joined) {
-
             //  There is no beginning of the message in current packet.
             //  Ignore the data.
             if (offset == 0xffff)
@@ -226,7 +236,7 @@ void zmq::pgm_receiver_t::in_event ()
             zmq_assert (offset <= insize);
             zmq_assert (it->second.decoder == NULL);
 
-            //  We have to move data to the begining of the first message.
+            //  We have to move data to the beginning of the first message.
             inpos += offset;
             insize -= offset;
 
@@ -234,8 +244,8 @@ void zmq::pgm_receiver_t::in_event ()
             it->second.joined = true;
 
             //  Create and connect decoder for the peer.
-            it->second.decoder = new (std::nothrow)
-                v1_decoder_t (0, options.maxmsgsize);
+            it->second.decoder =
+              new (std::nothrow) v1_decoder_t (0, options.maxmsgsize);
             alloc_assert (it->second.decoder);
         }
 
@@ -252,8 +262,7 @@ void zmq::pgm_receiver_t::in_event ()
             }
 
             it->second.joined = false;
-            delete it->second.decoder;
-            it->second.decoder = NULL;
+            LIBZMQ_DELETE (it->second.decoder);
             insize = 0;
         }
     }
@@ -303,4 +312,3 @@ void zmq::pgm_receiver_t::drop_subscriptions ()
 }
 
 #endif
-

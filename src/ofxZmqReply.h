@@ -10,7 +10,6 @@ public:
 	ofxZmqReply();
 	
 	void bind(string addr);
-	void unbind(string addr);
 	
 	bool send(const void *data, size_t len, bool nonblocking = false, bool more = false);
 	bool send(void *data, size_t len, bool nonblocking = false, bool more = false);

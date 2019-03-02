@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -34,34 +34,30 @@
 
 namespace zmq
 {
-    //  Decoder for ZMTP/1.0 protocol. Converts data batches into messages.
+//  Decoder for ZMTP/1.0 protocol. Converts data batches into messages.
 
-    class v1_decoder_t : public decoder_base_t <v1_decoder_t>
-    {
-    public:
+class v1_decoder_t : public decoder_base_t<v1_decoder_t>
+{
+  public:
+    v1_decoder_t (size_t bufsize_, int64_t maxmsgsize_);
+    ~v1_decoder_t ();
 
-        v1_decoder_t (size_t bufsize_, int64_t maxmsgsize_);
-        ~v1_decoder_t ();
+    virtual msg_t *msg () { return &_in_progress; }
 
-        virtual msg_t *msg () { return &in_progress; }
+  private:
+    int one_byte_size_ready (unsigned char const *);
+    int eight_byte_size_ready (unsigned char const *);
+    int flags_ready (unsigned char const *);
+    int message_ready (unsigned char const *);
 
-    private:
+    unsigned char _tmpbuf[8];
+    msg_t _in_progress;
 
-        int one_byte_size_ready ();
-        int eight_byte_size_ready ();
-        int flags_ready ();
-        int message_ready ();
+    const int64_t _max_msg_size;
 
-        unsigned char tmpbuf [8];
-        msg_t in_progress;
-
-        int64_t maxmsgsize;
-
-        v1_decoder_t (const v1_decoder_t&);
-        void operator = (const v1_decoder_t&);
-    };
-
+    v1_decoder_t (const v1_decoder_t &);
+    void operator= (const v1_decoder_t &);
+};
 }
 
 #endif
-

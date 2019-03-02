@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2007-2015 Contributors as noted in the AUTHORS file
+    Copyright (c) 2007-2016 Contributors as noted in the AUTHORS file
 
     This file is part of libzmq, the ZeroMQ core engine in C++.
 
@@ -32,164 +32,277 @@
 
 #include <string>
 #include <vector>
-#include <set>
+#include <map>
 
+#include "atomic_ptr.hpp"
 #include "stddef.h"
 #include "stdint.hpp"
 #include "tcp_address.hpp"
-#include "../include/zmq.h"
 
 #if defined ZMQ_HAVE_SO_PEERCRED || defined ZMQ_HAVE_LOCAL_PEERCRED
+#include <set>
 #include <sys/types.h>
+#endif
+#ifdef ZMQ_HAVE_LOCAL_PEERCRED
+#include <sys/ucred.h>
+#endif
+
+#if __cplusplus >= 201103L
+#include <type_traits>
 #endif
 
 //  Normal base 256 key is 32 bytes
-#define CURVE_KEYSIZE       32
+#define CURVE_KEYSIZE 32
 //  Key encoded using Z85 is 40 bytes
-#define CURVE_KEYSIZE_Z85   40
+#define CURVE_KEYSIZE_Z85 40
 
 namespace zmq
 {
-    struct options_t
-    {
-        options_t ();
+struct options_t
+{
+    options_t ();
 
-        int setsockopt (int option_, const void *optval_, size_t optvallen_);
-        int getsockopt (int option_, void *optval_, size_t *optvallen_);
+    int set_curve_key (uint8_t *destination_,
+                       const void *optval_,
+                       size_t optvallen_);
 
-        //  High-water marks for message pipes.
-        int sndhwm;
-        int rcvhwm;
+    int setsockopt (int option_, const void *optval_, size_t optvallen_);
+    int getsockopt (int option_, void *optval_, size_t *optvallen_) const;
 
-        //  I/O thread affinity.
-        uint64_t affinity;
+    //  High-water marks for message pipes.
+    int sndhwm;
+    int rcvhwm;
 
-        //  Socket identity
-        unsigned char identity_size;
-        unsigned char identity [256];
+    //  I/O thread affinity.
+    uint64_t affinity;
 
-        //  Maximum transfer rate [kb/s]. Default 100kb/s.
-        int rate;
+    //  Socket routing id.
+    unsigned char routing_id_size;
+    unsigned char routing_id[256];
 
-        //  Reliability time interval [ms]. Default 10 seconds.
-        int recovery_ivl;
+    //  Maximum transfer rate [kb/s]. Default 100kb/s.
+    int rate;
 
-        // Sets the time-to-live field in every multicast packet sent.
-        int multicast_hops;
+    //  Reliability time interval [ms]. Default 10 seconds.
+    int recovery_ivl;
 
-        // SO_SNDBUF and SO_RCVBUF to be passed to underlying transport sockets.
-        int sndbuf;
-        int rcvbuf;
+    // Sets the time-to-live field in every multicast packet sent.
+    int multicast_hops;
 
-        // Type of service (containing DSCP and ECN socket options)
-        int tos;
+    // Sets the maximum transport data unit size in every multicast
+    // packet sent.
+    int multicast_maxtpdu;
 
-        //  Socket type.
-        int type;
+    // SO_SNDBUF and SO_RCVBUF to be passed to underlying transport sockets.
+    int sndbuf;
+    int rcvbuf;
 
-        //  Linger time, in milliseconds.
-        int linger;
+    // Type of service (containing DSCP and ECN socket options)
+    int tos;
 
-        //  Minimum interval between attempts to reconnect, in milliseconds.
-        //  Default 100ms
-        int reconnect_ivl;
+    //  Socket type.
+    int8_t type;
 
-        //  Maximum interval between attempts to reconnect, in milliseconds.
-        //  Default 0 (unused)
-        int reconnect_ivl_max;
+    //  Linger time, in milliseconds.
+    atomic_value_t linger;
 
-        //  Maximum backlog for pending connections.
-        int backlog;
+    //  Maximum interval in milliseconds beyond which userspace will
+    //  timeout connect().
+    //  Default 0 (unused)
+    int connect_timeout;
 
-        //  Maximal size of message to handle.
-        int64_t maxmsgsize;
+    //  Maximum interval in milliseconds beyond which TCP will timeout
+    //  retransmitted packets.
+    //  Default 0 (unused)
+    int tcp_maxrt;
 
-        // The timeout for send/recv operations for this socket.
-        int rcvtimeo;
-        int sndtimeo;
+    //  Minimum interval between attempts to reconnect, in milliseconds.
+    //  Default 100ms
+    int reconnect_ivl;
 
-        //  If true, IPv6 is enabled (as well as IPv4)
-        bool ipv6;
+    //  Maximum interval between attempts to reconnect, in milliseconds.
+    //  Default 0 (unused)
+    int reconnect_ivl_max;
 
-        //  If 1, connecting pipes are not attached immediately, meaning a send()
-        //  on a socket with only connecting pipes would block
-        int immediate;
+    //  Maximum backlog for pending connections.
+    int backlog;
 
-        //  If 1, (X)SUB socket should filter the messages. If 0, it should not.
-        bool filter;
+    //  Maximal size of message to handle.
+    int64_t maxmsgsize;
 
-        //  If true, the identity message is forwarded to the socket.
-        bool recv_identity;
+    // The timeout for send/recv operations for this socket, in milliseconds.
+    int rcvtimeo;
+    int sndtimeo;
 
-        // if true, router socket accepts non-zmq tcp connections
-        bool raw_sock;
+    //  If true, IPv6 is enabled (as well as IPv4)
+    bool ipv6;
 
-        //  Addres of SOCKS proxy
-        std::string socks_proxy_address;
+    //  If 1, connecting pipes are not attached immediately, meaning a send()
+    //  on a socket with only connecting pipes would block
+    int immediate;
 
-        //  TCP keep-alive settings.
-        //  Defaults to -1 = do not change socket options
-        int tcp_keepalive;
-        int tcp_keepalive_cnt;
-        int tcp_keepalive_idle;
-        int tcp_keepalive_intvl;
+    //  If 1, (X)SUB socket should filter the messages. If 0, it should not.
+    bool filter;
 
-        // TCP accept() filters
-        typedef std::vector <tcp_address_mask_t> tcp_accept_filters_t;
-        tcp_accept_filters_t tcp_accept_filters;
+    //  If true, the subscription matching on (X)PUB and (X)SUB sockets
+    //  is reversed. Messages are sent to and received by non-matching
+    //  sockets.
+    bool invert_matching;
 
-        // IPC accept() filters
-#       if defined ZMQ_HAVE_SO_PEERCRED || defined ZMQ_HAVE_LOCAL_PEERCRED
-        bool zap_ipc_creds;
-        typedef std::set <uid_t> ipc_uid_accept_filters_t;
-        ipc_uid_accept_filters_t ipc_uid_accept_filters;
-        typedef std::set <gid_t> ipc_gid_accept_filters_t;
-        ipc_gid_accept_filters_t ipc_gid_accept_filters;
-#       endif
-#       if defined ZMQ_HAVE_SO_PEERCRED
-        typedef std::set <pid_t> ipc_pid_accept_filters_t;
-        ipc_pid_accept_filters_t ipc_pid_accept_filters;
-#       endif
+    //  If true, the routing id message is forwarded to the socket.
+    bool recv_routing_id;
 
-        //  Security mechanism for all connections on this socket
-        int mechanism;
+    // if true, router socket accepts non-zmq tcp connections
+    bool raw_socket;
+    bool raw_notify; //  Provide connect notifications
 
-        //  If peer is acting as server for PLAIN or CURVE mechanisms
-        int as_server;
+    //  Address of SOCKS proxy
+    std::string socks_proxy_address;
 
-        //  ZAP authentication domain
-        std::string zap_domain;
+    //  TCP keep-alive settings.
+    //  Defaults to -1 = do not change socket options
+    int tcp_keepalive;
+    int tcp_keepalive_cnt;
+    int tcp_keepalive_idle;
+    int tcp_keepalive_intvl;
 
-        //  Security credentials for PLAIN mechanism
-        std::string plain_username;
-        std::string plain_password;
+    // TCP accept() filters
+    typedef std::vector<tcp_address_mask_t> tcp_accept_filters_t;
+    tcp_accept_filters_t tcp_accept_filters;
 
-        //  Security credentials for CURVE mechanism
-        uint8_t curve_public_key [CURVE_KEYSIZE];
-        uint8_t curve_secret_key [CURVE_KEYSIZE];
-        uint8_t curve_server_key [CURVE_KEYSIZE];
+    // IPC accept() filters
+#if defined ZMQ_HAVE_SO_PEERCRED || defined ZMQ_HAVE_LOCAL_PEERCRED
+    typedef std::set<uid_t> ipc_uid_accept_filters_t;
+    ipc_uid_accept_filters_t ipc_uid_accept_filters;
+    typedef std::set<gid_t> ipc_gid_accept_filters_t;
+    ipc_gid_accept_filters_t ipc_gid_accept_filters;
+#endif
+#if defined ZMQ_HAVE_SO_PEERCRED
+    typedef std::set<pid_t> ipc_pid_accept_filters_t;
+    ipc_pid_accept_filters_t ipc_pid_accept_filters;
+#endif
 
-        //  Principals for GSSAPI mechanism
-        std::string gss_principal;
-        std::string gss_service_principal;
+    //  Security mechanism for all connections on this socket
+    int mechanism;
 
-        //  If true, gss encryption will be disabled
-        bool gss_plaintext;
+    //  If peer is acting as server for PLAIN or CURVE mechanisms
+    int as_server;
 
-        //  ID of the socket.
-        int socket_id;
+    //  ZAP authentication domain
+    std::string zap_domain;
 
-        //  If true, socket conflates outgoing/incoming messages.
-        //  Applicable to dealer, push/pull, pub/sub socket types.
-        //  Cannot receive multi-part messages.
-        //  Ignores hwm
-        bool conflate;
+    //  Security credentials for PLAIN mechanism
+    std::string plain_username;
+    std::string plain_password;
 
-        //  If connection handshake is not done after this many milliseconds,
-        //  close socket.  Default is 30 secs.  0 means no handshake timeout.
-        int handshake_ivl;
+    //  Security credentials for CURVE mechanism
+    uint8_t curve_public_key[CURVE_KEYSIZE];
+    uint8_t curve_secret_key[CURVE_KEYSIZE];
+    uint8_t curve_server_key[CURVE_KEYSIZE];
 
-    };
+    //  Principals for GSSAPI mechanism
+    std::string gss_principal;
+    std::string gss_service_principal;
+
+    //  Name types GSSAPI principals
+    int gss_principal_nt;
+    int gss_service_principal_nt;
+
+    //  If true, gss encryption will be disabled
+    bool gss_plaintext;
+
+    //  ID of the socket.
+    int socket_id;
+
+    //  If true, socket conflates outgoing/incoming messages.
+    //  Applicable to dealer, push/pull, pub/sub socket types.
+    //  Cannot receive multi-part messages.
+    //  Ignores hwm
+    bool conflate;
+
+    //  If connection handshake is not done after this many milliseconds,
+    //  close socket.  Default is 30 secs.  0 means no handshake timeout.
+    int handshake_ivl;
+
+    bool connected;
+    //  If remote peer receives a PING message and doesn't receive another
+    //  message within the ttl value, it should close the connection
+    //  (measured in tenths of a second)
+    uint16_t heartbeat_ttl;
+    //  Time in milliseconds between sending heartbeat PING messages.
+    int heartbeat_interval;
+    //  Time in milliseconds to wait for a PING response before disconnecting
+    int heartbeat_timeout;
+
+#if defined ZMQ_HAVE_VMCI
+    uint64_t vmci_buffer_size;
+    uint64_t vmci_buffer_min_size;
+    uint64_t vmci_buffer_max_size;
+    int vmci_connect_timeout;
+#endif
+
+    //  When creating a new ZMQ socket, if this option is set the value
+    //  will be used as the File Descriptor instead of allocating a new
+    //  one via the socket () system call.
+    int use_fd;
+
+    // Device to bind the underlying socket to, eg. VRF or interface
+    std::string bound_device;
+
+    //  Enforce a non-empty ZAP domain requirement for PLAIN auth
+    bool zap_enforce_domain;
+
+    // Use of loopback fastpath.
+    bool loopback_fastpath;
+
+    //  Loop sent multicast packets to local sockets
+    bool multicast_loop;
+
+    // Use zero copy strategy for storing message content when decoding.
+    bool zero_copy;
+
+    // Router socket ZMQ_NOTIFY_CONNECT/ZMQ_NOTIFY_DISCONNECT notifications
+    int router_notify;
+
+    // Application metadata
+    std::map<std::string, std::string> app_metadata;
+};
+
+inline bool get_effective_conflate_option (const options_t &options)
+{
+    // conflate is only effective for some socket types
+    return options.conflate
+           && (options.type == ZMQ_DEALER || options.type == ZMQ_PULL
+               || options.type == ZMQ_PUSH || options.type == ZMQ_PUB
+               || options.type == ZMQ_SUB);
+}
+
+int do_getsockopt (void *const optval_,
+                   size_t *const optvallen_,
+                   const void *value_,
+                   const size_t value_len_);
+
+template <typename T>
+int do_getsockopt (void *const optval_, size_t *const optvallen_, T value_)
+{
+#if __cplusplus >= 201103L && (!defined(__GNUC__) || __GNUC__ > 5)
+    static_assert (std::is_trivially_copyable<T>::value,
+                   "invalid use of do_getsockopt");
+#endif
+    return do_getsockopt (optval_, optvallen_, &value_, sizeof (T));
+}
+
+int do_getsockopt (void *const optval_,
+                   size_t *const optvallen_,
+                   const std::string &value_);
+
+int do_setsockopt_int_as_bool_strict (const void *const optval_,
+                                      const size_t optvallen_,
+                                      bool *const out_value_);
+
+int do_setsockopt_int_as_bool_relaxed (const void *const optval_,
+                                       const size_t optvallen_,
+                                       bool *const out_value_);
 }
 
 #endif

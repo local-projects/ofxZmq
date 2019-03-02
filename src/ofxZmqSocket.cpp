@@ -16,7 +16,7 @@ static zmq::context_t& ofxZmqContext()
 ofxZmqSocket::ofxZmqSocket(int type) : socket(ofxZmqContext(), type)
 {
 	zmq::pollitem_t item;
-	item.socket = socket;
+	item.socket = (void*)socket;
 	item.fd = 0;
 	item.events = ZMQ_POLLIN;
 	item.revents = 0;
@@ -143,6 +143,12 @@ string ofxZmqSocket::getIdentity()
 	return string(buf, buf + size);
 }
 
+
+bool ofxZmqSocket::isConnected()
+{
+	return this->socket.connected();
+}
+
 void ofxZmqSocket::setHighWaterMark(long maxQueueSize)
 {
 	setReceiveHighWaterMark(maxQueueSize);
@@ -186,7 +192,7 @@ long ofxZmqSocket::getReceiveHighWaterMark()
 
 bool ofxZmqSocket::hasWaitingMessage(long timeout_millis)
 {
-	return zmq::poll(items, 1, timeout_millis * 1000) > 0;
+	return zmq::poll(items, 1, timeout_millis) > 0;
 }
 
 bool ofxZmqSocket::getNextMessage(string &data)
@@ -201,3 +207,8 @@ bool ofxZmqSocket::getNextMessage(ofBuffer &data)
 	return receive(data);
 }
 
+
+void ofxZmqSocket::setConflate(bool doConflate){
+	const int v_true = doConflate ? 1 : 0;
+	socket.setsockopt(ZMQ_CONFLATE, &v_true, sizeof(v_true));
+}
