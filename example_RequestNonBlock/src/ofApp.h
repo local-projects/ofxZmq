@@ -2,6 +2,7 @@
 
 #include "ofMain.h"
 #include "ofxZmq.h"
+#include "ZmqMsgQueue.h"
 #include "ofxTimeMeasurements.h"
 
 class ofApp : public ofBaseApp{
@@ -21,5 +22,7 @@ public:
 	void dragEvent(ofDragInfo dragInfo);
 	void gotMessage(ofMessage msg);
 
+	ZmqMsgQueue queue;
 
+	int count = 0;
 };

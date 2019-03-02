@@ -23,6 +23,7 @@ void ofApp::setup()
 {
 	ofSetLogLevel(OF_LOG_VERBOSE);
 	ofSetFrameRate(60);
+	ofBackground(22);
 	ofSetWindowTitle("client");
 	client = getNewSocket();
 }
@@ -36,6 +37,13 @@ void ofApp::update()
 //--------------------------------------------------------------
 void ofApp::draw()
 {
+
+	ofTranslate(ofGetWidth()/2, ofGetHeight()/2);
+	ofSetColor(255);
+	ofPushMatrix();
+	ofRotateDeg(360 * ofGetElapsedTimef(), 0, 0, 1);
+	ofDrawRectangle(0, -2, 100, 4);
+	ofPopMatrix();
 
 }
 

@@ -1,8 +1,6 @@
 #include "ofApp.h"
 
 
-ofxZmqReply server;
-
 //--------------------------------------------------------------
 void ofApp::setup()
 {
@@ -10,55 +8,44 @@ void ofApp::setup()
 	ofSetLogLevel(OF_LOG_VERBOSE);
 	ofSetFrameRate(60);
 	ofBackground(22);
+	ofSetWindowTitle("client");
 
-	// start client
-	server.bind("tcp://*:9999");
-	ofSetWindowTitle("server");
-
+	queue.setup("127.0.0.1", 9999);
+	queue.setTxTimeout(2000); //ms
+	queue.setMaxRetries(3);
+	queue.setMaxQueueLen(10);
 }
 
-
 //--------------------------------------------------------------
-void ofApp::update()
-{
+void ofApp::update(){
 
-	while (server.hasWaitingMessage()){
-
-		ofBuffer data;
-		server.getNextMessage(data);
-
-		ofLog() << "SERVER RECEIVED: \"" << data << "\"";
-
-		if(server.isConnected()){
-			string response  = "Hello back: " + data.getText();
-			if (!server.send(response)){
-				ofLogError() << "SEND FAILED message: " << response;
-			}else{
-				ofLog() << "SENT message: \"" << response  << "\"";
-			}
-		}else{
-			ofLogError() << "SERVER NOT CONNECTED: " << data;
-		}
-	}
-
+	queue.update();
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
 
-	ofTranslate(ofGetWidth()/2, ofGetHeight()/2);
+
 	ofSetColor(255);
 	ofPushMatrix();
-	ofRotateDeg(360 * ofGetElapsedTimef(), 0, 0, 1);
-	ofDrawRectangle(0, -2, 100, 4);
+		ofTranslate(ofGetWidth()/2, ofGetHeight()/2);
+		ofRotateDeg(360 * ofGetElapsedTimef(), 0, 0, 1);
+		ofDrawRectangle(0, -2, 100, 4);
 	ofPopMatrix();
 
+	ofDrawBitmapStringHighlight("Queue Len: " + ofToString(queue.getQueueLen()), 20, 20);
 }
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key)
 {
 
+	NetProtocol::NetMessage msg;
+	msg.dstIP = "127.0.0.1"; //those are sort of irrelevent - we are always connected
+	msg.dstPort = 9999; //those are sort of irrelevent - we are always connected
+	msg.data = "This is msg " + ofToString(count);
+	queue.enqueueMessage(msg);
+	count++;
 }
 
 //--------------------------------------------------------------
