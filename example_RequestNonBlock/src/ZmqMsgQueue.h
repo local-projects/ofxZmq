@@ -9,7 +9,6 @@
 #pragma once
 #include "ofMain.h"
 #include "ofxZmq.h"
-#include "ofxHistoryPlot.h"
 #include "NetProtocol.h"
 
 
@@ -32,7 +31,6 @@ public:
 	void setMaxRetries(int t){ maxRetries = t;}
 
 	//stats
-	ofxHistoryPlot* getPlot(){return plot;};
 	float getAvgTxDuration(){return avgTxDuration;};
 
 protected:
@@ -70,8 +68,6 @@ protected:
 	int maxRetries = 3;
 
 	float avgTxDuration = 0.0f;
-
-	ofxHistoryPlot * plot = nullptr;
 
 };
 

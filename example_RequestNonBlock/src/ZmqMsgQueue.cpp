@@ -23,6 +23,7 @@ void ZmqMsgQueue::setup(string dstIP, int dstPort){
 	destinationIP = dstIP;
 	destinationPort = dstPort;
 	setupSocket(); //connect on setup
+
 }
 
 
@@ -142,5 +143,4 @@ void ZmqMsgQueue::update(){
 		}break;
 
 	}
-
 }

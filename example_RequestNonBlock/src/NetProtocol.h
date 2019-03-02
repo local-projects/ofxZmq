@@ -18,4 +18,7 @@ namespace NetProtocol{
 		int srcPort = 0;
 		int dstPort = 0;
 	};
+
+	constexpr bool getDebugNetwork(){ return false; }
+	
 }
