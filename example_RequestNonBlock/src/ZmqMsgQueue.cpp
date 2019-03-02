@@ -8,7 +8,15 @@
 
 #include "ZmqMsgQueue.h"
 
-ZmqMsgQueue::ZmqMsgQueue(){}
+ZmqMsgQueue::ZmqMsgQueue(){
+}
+
+ZmqMsgQueue::~ZmqMsgQueue(){
+	if(client){
+		delete client;
+		client = nullptr;
+	}
+}
 
 
 void ZmqMsgQueue::setup(string dstIP, int dstPort){
@@ -25,13 +33,17 @@ void ZmqMsgQueue::setTxTimeout(int ms){
 
 void ZmqMsgQueue::setupSocket(){
 
-	if(client) delete client;
-
+	string destination = "tcp://" + destinationIP + ":" + ofToString(destinationPort);
+	if(client){
+		client->disconnect(destination);
+		delete client;
+	}
 	client = new ofxZmqRequest();
 	client->setSendHighWaterMark(1);
 	client->setConflate(true);
-	string destination = "tcp://" + destinationIP + ":" + ofToString(destinationPort);
 	client->connect(destination);
+	client->setSendHighWaterMark(1);
+	client->setConflate(true);
 	ofLogWarning("ZmqMsgQueue") << "connected new socket! " << destination;
 	//ofLogNotice() << "high watermark: " << req->getSendHighWaterMark();
 }
@@ -60,7 +72,9 @@ void ZmqMsgQueue::update(){
 				queue.erase(queue.begin());
 				msg.state = SHOULD_SEND_MESSAGE;
 				msg.numTriesLeft = maxRetries - 1;
-				msg.sendTime = msg.accSendTime = ofGetElapsedTimef();
+				msg.accSendTime = ofGetElapsedTimef();
+
+				update(); //note that we are recursing here to reduce latency (avoid waiting a whole new frame for this)
 			}
 			}break;
 
@@ -72,6 +86,8 @@ void ZmqMsgQueue::update(){
 			}else{
 				ofLogNotice("ZmqMsgQueue") << "SENT OK: \"" << msg.currentMsg.data << "\"";
 				msg.state = WAITING_REPLY;
+
+				update(); //note that we are recursing here to reduce latency (avoid waiting a whole new frame for this)
 			}
 		}break;
 
@@ -87,7 +103,9 @@ void ZmqMsgQueue::update(){
 			if(pendingMsg){ //msg is ready to be retrieved
 				client->getNextMessage(msg.reply);
 				msg.state = GOT_REPLY;
+
 				update(); //note that we are recursing here to reduce latency (avoid waiting a whole new frame for this)
+
 			}else{ //msg is not here yet
 				if(ofGetElapsedTimef() - msg.sendTime > txTimeout / 1000.0f){ //timed out waiting for reply!
 					msg.state = TIMED_OUT_WAITING_FOR_REPLY_WILL_TRY_AGAIN;

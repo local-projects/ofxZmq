@@ -18,6 +18,7 @@ class ZmqMsgQueue{
 public:
 	
 	ZmqMsgQueue();
+	~ZmqMsgQueue();
 
 	void setup(string dstIP, int dstPort);
 	void update();
