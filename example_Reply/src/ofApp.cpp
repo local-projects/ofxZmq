@@ -12,7 +12,7 @@ void ofApp::setup()
 	ofBackground(22);
 
 	// start client
-	server.bind("tcp://*:9999");
+
 	ofSetWindowTitle("server");
 
 }
