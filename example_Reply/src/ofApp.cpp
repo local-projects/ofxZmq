@@ -15,6 +15,7 @@ void ofApp::setup()
 
 	ofSetWindowTitle("server");
 
+	server.bind("tcp://*:9999");
 }
 
 
